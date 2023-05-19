@@ -3,12 +3,15 @@
   options,
   lib,
   pkgs,
+  fetchFromGitHub,
   ...
 }:
 with lib; let
   cfg = config.age;
 
   isDarwin = lib.attrsets.hasAttrByPath ["environment" "darwinConfig"] options;
+
+  age-plugin-yubikey = pkgs.callPackage ../pkgs/age-plugin-yubikey.nix {};
 
   ageBin = config.age.ageBin;
 
@@ -61,6 +64,13 @@ with lib; let
     }
   '';
 
+  yubikeyPinPrompt = ''Enter your Yubikey PIN for $(${age-plugin-yubikey}/bin/age-plugin-yubikey -V):'';
+  yubikeyPinPrompter = ''${
+      if pkgs.stdenv.isLinux
+      then ''AGE_YUBIKEY_PIN=$(${pkgs.systemd}/bin/systemd-ask-password --echo=masked "${yubikeyPinPrompt}")''
+      else ""
+    }'';
+
   installSecret = secretType: ''
     ${setTruePath secretType}
     echo "decrypting '${secretType.file}' to '$_truePath'..."
@@ -81,7 +91,9 @@ with lib; let
       umask u=r,g=,o=
       test -f "${secretType.file}" || echo '[agenix] WARNING: encrypted file ${secretType.file} does not exist!'
       test -d "$(dirname "$TMP_FILE")" || echo "[agenix] WARNING: $(dirname "$TMP_FILE") does not exist!"
-      LANG=${config.i18n.defaultLocale or "C"} ${ageBin} --decrypt "''${IDENTITIES[@]}" -o "$TMP_FILE" "${secretType.file}"
+      IDENTITY_FETCHER="${pkgs.gnugrep}/bin/grep -rw $(${age-plugin-yubikey}/bin/age-plugin-yubikey -i | ${pkgs.gnugrep}/bin/grep -m1 -oP '(AGE-PLUGIN-YUBIKEY-).{22}') {${builtins.concatStringsSep "," cfg.identityPaths},${pkgs.writeText "grep-needs-at-least-2-files" ""}} | ${pkgs.gnugrep}/bin/grep -m1 -oP '^.*?(?=:AGE-PLUGIN-YUBIKEY-)'"
+      IDENTITY=$(${pkgs.bash}/bin/bash -c "$IDENTITY_FETCHER")
+      ${yubikeyPinPrompter} LANG=${config.i18n.defaultLocale or "C"} PATH=${lib.makeBinPath [age-plugin-yubikey]} ${ageBin} --decrypt -i $IDENTITY -o "$TMP_FILE" "${secretType.file}"
     )
     chmod ${secretType.mode} "$TMP_FILE"
     mv -f "$TMP_FILE" "$_truePath"
