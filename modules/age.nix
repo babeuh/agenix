@@ -103,6 +103,10 @@ with lib; let
       if cfg.yubikeySupport
       then "PATH=$PATH:${lib.makeBinPath [yubikeyPluginPackage]}"
       else ""
+    } ${
+      if cfg.yubikeySupport
+      then "AGE_YUBIKEY_PIN=$AGE_YUBIKEY_PIN"
+      else ""
     } ${ageBin} --decrypt -i ${
       if cfg.yubikeySupport
       then "$AGE_YUBIKEY_IDENTITY"
