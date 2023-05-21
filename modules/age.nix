@@ -3,7 +3,6 @@
   options,
   lib,
   pkgs,
-  fetchFromGitHub,
   ...
 }:
 with lib; let
