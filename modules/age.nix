@@ -108,7 +108,7 @@ with lib; let
       if cfg.yubikey.enable
       then "AGE_YUBIKEY_PIN=$AGE_YUBIKEY_PIN"
       else ""
-    } ${ageBin} --decrypt -i ''${IDENTITIES[@]} -o "$TMP_FILE" "${secretType.file}"
+    } ${ageBin} --decrypt ''${IDENTITIES[@]} -o "$TMP_FILE" "${secretType.file}"
     )
     chmod ${secretType.mode} "$TMP_FILE"
     mv -f "$TMP_FILE" "$_truePath"
