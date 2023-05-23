@@ -217,6 +217,27 @@ with lib; let
       symlink = mkEnableOption "symlinking secrets to their destination" // {default = true;};
     };
   });
+
+  yubikeyKeyType = types.attrsOf (types.submodule ({identity, ...}: {
+    freeformType = (pkgs.formats.json {}).type;
+    options = {
+      identity = mkOption {
+        type = types.str;
+        default = identity;
+        description = ''
+          Identity of the ssh key on your Yubikey. Starts with AGE-PLUGIN-YUBIKEY-
+        '';
+      };
+      slot = mkOption {
+        type = types.int;
+        default = 1;
+        description = ''
+          Slot of the ssh key on your Yubikey.
+        '';
+      };
+    };
+  }));
+
 in {
   imports = [
     (mkRenamedOptionModule ["age" "sshKeyPaths"] ["age" "identityPaths"])
@@ -249,25 +270,7 @@ in {
             slot = 1;
           };
         };
-        type = types.attrsOf (types.submodule ({identity, ...}: {
-          #freeformType = (pkgs.formats.json {}).type;
-          options = {
-            identity = mkOption {
-              type = types.str;
-              default = identity;
-              description = ''
-                Identity of the ssh key on your Yubikey. Starts with AGE-PLUGIN-YUBIKEY-
-              '';
-            };
-            slot = mkOption {
-              type = types.int;
-              default = 1;
-              description = ''
-                Slot of the ssh key on your Yubikey.
-              '';
-            };
-          };
-        }));
+        type = yubikeyKeyType;
       };
     };
     secrets = mkOption {
