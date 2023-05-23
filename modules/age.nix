@@ -11,7 +11,6 @@ with lib; let
   isDarwin = lib.attrsets.hasAttrByPath ["environment" "darwinConfig"] options;
 
   ageBin = config.age.ageBin;
-  yubikeyPluginPackage = config.age.yubikeyPluginPackage;
 
   users = config.users.users;
 
@@ -64,10 +63,8 @@ with lib; let
 
   yubikeyPinPrompt =
     if pkgs.stdenv.isLinux
-    then ''AGE_YUBIKEY_PIN=$(${pkgs.systemd}/bin/systemd-ask-password --echo=masked "Enter your Yubikey PIN for $(${yubikeyPluginPackage}/bin/age-plugin-yubikey -V):")''
+    then ''AGE_YUBIKEY_PIN=$(${pkgs.systemd}/bin/systemd-ask-password --echo=masked "Enter your Yubikey PIN for $(${cfg.yubikey.plugin}/bin/age-plugin-yubikey -V):")''
     else "";
-  yubikeyIdentityFetcher = ''
-    AGE_YUBIKEY_IDENTITY=$(${pkgs.bash}/bin/bash -c "${pkgs.gnugrep}/bin/grep -rw $(${yubikeyPluginPackage}/bin/age-plugin-yubikey -i | ${pkgs.gnugrep}/bin/grep -m1 -oP '(AGE-PLUGIN-YUBIKEY-).{22}') {${builtins.concatStringsSep "," cfg.yubikeyIdentityPaths},${pkgs.writeText "grep-needs-at-least-2-files" ""}} | ${pkgs.gnugrep}/bin/grep -m1 -oP '^.*?(?=:AGE-PLUGIN-YUBIKEY-)'")'';
 
   installSecret = secretType: ''
     ${setTruePath secretType}
@@ -75,15 +72,25 @@ with lib; let
     TMP_FILE="$_truePath.tmp"
 
     IDENTITIES=()
-    for identity in ${toString (
-      if cfg.yubikeySupport
-      then cfg.yubikeyIdentityPaths
-      else cfg.identityPaths
-    )}; do
-      test -r "$identity" || continue
-      IDENTITIES+=(-i)
-      IDENTITIES+=("$identity")
-    done
+    ${
+      if cfg.yubikey.enable
+      then ''
+        mkdir -p /tmp/agenix
+        for identity in ${toString (lib.attrsets.catAttrs "identity" (lib.attrsets.attrValues cfg.yubikey.keys))}; do
+          (${cfg.yubikey.plugin}/bin/age-plugin-yubikey -i | ${pkgs.gnugrep}/bin/grep "$identity") || continue
+          echo "$identity" > /tmp/agenix/$identity
+          IDENTITIES+=(-i)
+          IDENTITIES+=("/tmp/agenix/$identity")
+        done
+      ''
+      else ''
+        for identity in ${toString (cfg.identityPaths)}; do
+          test -r "$identity" || continue
+          IDENTITIES+=(-i)
+          IDENTITIES+=("$identity")
+        done
+      ''
+    }
 
     test "''${#IDENTITIES[@]}" -eq 0 && echo "[agenix] WARNING: no readable identities found!"
 
@@ -93,24 +100,15 @@ with lib; let
       umask u=r,g=,o=
       test -f "${secretType.file}" || echo '[agenix] WARNING: encrypted file ${secretType.file} does not exist!'
       test -d "$(dirname "$TMP_FILE")" || echo "[agenix] WARNING: $(dirname "$TMP_FILE") does not exist!"
-      ${
-      if cfg.yubikeySupport
-      then yubikeyIdentityFetcher
-      else ""
-    }
       LANG=${config.i18n.defaultLocale or "C"} ${
-      if cfg.yubikeySupport
-      then "PATH=$PATH:${lib.makeBinPath [yubikeyPluginPackage]}"
+      if cfg.yubikey.enable
+      then "PATH=$PATH:${lib.makeBinPath [cfg.yubikey.plugin]}"
       else ""
     } ${
-      if cfg.yubikeySupport
+      if cfg.yubikey.enable
       then "AGE_YUBIKEY_PIN=$AGE_YUBIKEY_PIN"
       else ""
-    } ${ageBin} --decrypt -i ${
-      if cfg.yubikeySupport
-      then "$AGE_YUBIKEY_IDENTITY"
-      else "\${IDENTITIES[@]}"
-    } -o "$TMP_FILE" "${secretType.file}"
+    } ${ageBin} --decrypt -i ''${IDENTITIES[@]} -o "$TMP_FILE" "${secretType.file}"
     )
     chmod ${secretType.mode} "$TMP_FILE"
     mv -f "$TMP_FILE" "$_truePath"
@@ -126,12 +124,17 @@ with lib; let
       test -f ${path} || echo '[agenix] WARNING: config.age.identityPaths entry ${path} not present!'
     '')
     (
-      if cfg.yubikeySupport
+      if cfg.yubikey.enable
       then cfg.yubikeyIdentityPaths
       else cfg.identityPaths
     );
 
   cleanupAndLink = ''
+    ${
+      if cfg.yubikey.enable
+      then "rm -r /tmp/agenix;AGE_YUBIKEY_PIN="
+      else ""
+    }
     _agenix_generation="$(basename "$(readlink ${cfg.secretsDir})" || echo 0)"
     (( ++_agenix_generation ))
     echo "[agenix] symlinking new secrets to ${cfg.secretsDir} (generation $_agenix_generation)..."
@@ -148,7 +151,7 @@ with lib; let
     ++ testIdentities
     ++ [
       (
-        if cfg.yubikeySupport
+        if cfg.yubikey.enable
         then yubikeyPinPrompt
         else ""
       )
@@ -227,20 +230,45 @@ in {
         The age executable to use.
       '';
     };
-    yubikeySupport = mkEnableOption "Use Yubikeys instead of private keys";
-    yubikeyPluginPackage = mkOption {
-      type = types.package;
-      default = pkgs.callPackage ../pkgs/age-plugin-yubikey.nix {};
-      description = ''
-        The age-plugin-yubikey package to use.
-      '';
-    };
-    yubikeyIdentityPaths = mkOption {
-      type = types.listOf types.path;
-      default = [];
-      description = ''
-        Path to age-plugin-yubikey identities to be used in age decryption.
-      '';
+    yubikey = {
+      enable = mkEnableOption "Use Yubikeys instead of private keys";
+      plugin = mkOption {
+        type = types.package;
+        default = pkgs.callPackage ../pkgs/age-plugin-yubikey.nix {};
+        description = ''
+          The age-plugin-yubikey package to use.
+        '';
+      };
+      keys = mkOption {
+        default = {};
+        description = ''
+          Yubikey identities to be used in age decryption.
+        '';
+        example = {
+          AGE-PLUGIN-YUBIKEY-XYZ = {
+            slot = 1;
+          };
+        };
+        type = types.attrsOf (types.submodule ({identity, ...}: {
+          freeformType = (pkgs.formats.json {}).type;
+          options = {
+            identity = {
+              type = types.str;
+              default = identity;
+              description = ''
+                Identity of the ssh key on your Yubikey. Starts with AGE-PLUGIN-YUBIKEY-
+              '';
+            };
+            slot = {
+              type = types.int;
+              default = 1;
+              description = ''
+                Slot of the ssh key on your Yubikey.
+              '';
+            };
+          };
+        }));
+      };
     };
     secrets = mkOption {
       type = types.attrsOf secretType;
@@ -292,10 +320,10 @@ in {
       assertions = [
         {
           assertion =
-            if cfg.yubikeySupport
+            if cfg.yubikey.enable
             then cfg.yubikeyIdentityPaths != []
-            else cfg.identityPaths != [];
-          message = "age.identityPaths (or age.yubikeyIdentityPaths if using yubikeySupport) must be set.";
+            else lib.attrsets.attrValues cfg.yubikey.keys != [];
+          message = "age.identityPaths (or age.yubikey.keys if age.yubikey.enable is set) must be set.";
         }
       ];
     }
