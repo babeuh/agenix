@@ -323,8 +323,8 @@ in {
         {
           assertion =
             if cfg.yubikey.enable
-            then cfg.yubikeyIdentityPaths != []
-            else lib.attrsets.attrValues cfg.yubikey.keys != [];
+            then lib.attrsets.attrValues cfg.yubikey.keys != []
+            else cfg.identityPaths != [];
           message = "age.identityPaths (or age.yubikey.keys if age.yubikey.enable is set) must be set.";
         }
       ];
