@@ -218,7 +218,7 @@ with lib; let
     };
   });
 
-  yubikeyKeyType = types.attrsOf (types.submodule ({identity, ...}: {
+  yubikeyKeyType = types.submodule ({identity, ...}: {
     freeformType = (pkgs.formats.json {}).type;
     options = {
       identity = mkOption {
@@ -236,8 +236,7 @@ with lib; let
         '';
       };
     };
-  }));
-
+  });
 in {
   imports = [
     (mkRenamedOptionModule ["age" "sshKeyPaths"] ["age" "identityPaths"])
