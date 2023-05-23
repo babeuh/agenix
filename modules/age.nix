@@ -124,9 +124,7 @@ with lib; let
       test -f ${path} || echo '[agenix] WARNING: config.age.identityPaths entry ${path} not present!'
     '')
     (
-      if cfg.yubikey.enable
-      then cfg.yubikeyIdentityPaths
-      else cfg.identityPaths
+      cfg.identityPaths
     );
 
   cleanupAndLink = ''
@@ -148,7 +146,11 @@ with lib; let
 
   installSecrets = builtins.concatStringsSep "\n" (
     ["echo '[agenix] decrypting secrets...'"]
-    ++ testIdentities
+    ++ (
+      if cfg.yubikey.enable
+      then ""
+      else testIdentities
+    )
     ++ [
       (
         if cfg.yubikey.enable
