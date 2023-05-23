@@ -76,7 +76,7 @@ with lib; let
       if cfg.yubikey.enable
       then ''
         mkdir -p /tmp/agenix
-        for identity in ${toString (lib.attrsets.catAttrs "identity" (lib.attrsets.attrValues cfg.yubikey.keys))}; do
+        for identity in ${toString (cfg.yubikey.keys)}; do
           (${cfg.yubikey.plugin}/bin/age-plugin-yubikey -i | ${pkgs.gnugrep}/bin/grep "$identity") || continue
           echo "$identity" > /tmp/agenix/$identity
           IDENTITIES+=(-i)
@@ -218,25 +218,6 @@ with lib; let
     };
   });
 
-  yubikeyKeyType = types.attrsOf (types.submodule ({name, ...}: {
-    freeformType = (pkgs.formats.json {}).type;
-    options = {
-      identity = mkOption {
-        type = types.str;
-        default = name;
-        description = ''
-          Identity of the ssh key on your Yubikey. Starts with AGE-PLUGIN-YUBIKEY-
-        '';
-      };
-      slot = mkOption {
-        type = types.int;
-        default = 1;
-        description = ''
-          Slot of the ssh key on your Yubikey.
-        '';
-      };
-    };
-  }));
 in {
   imports = [
     (mkRenamedOptionModule ["age" "sshKeyPaths"] ["age" "identityPaths"])
@@ -260,16 +241,16 @@ in {
         '';
       };
       keys = mkOption {
-        default = {};
+        default = [];
         description = ''
-          Yubikey identities to be used in age decryption.
+          List of Yubikey identities to be used in age decryption. These start with AGE-PLUGIN-YUBIKEY-
         '';
         example = {
           AGE-PLUGIN-YUBIKEY-XYZ = {
             slot = 1;
           };
         };
-        type = yubikeyKeyType;
+        type = types.listOf types.str;
       };
     };
     secrets = mkOption {
@@ -323,7 +304,7 @@ in {
         {
           assertion =
             if cfg.yubikey.enable
-            then lib.attrsets.attrValues cfg.yubikey.keys != []
+            then cfg.yubikey.keys != []
             else cfg.identityPaths != [];
           message = "age.identityPaths (or age.yubikey.keys if age.yubikey.enable is set) must be set.";
         }
