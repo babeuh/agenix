@@ -146,7 +146,7 @@ with lib; let
     ["echo '[agenix] decrypting secrets...'"]
     ++ (
       if cfg.yubikey.enable
-      then ""
+      then []
       else testIdentities
     )
     ++ [
