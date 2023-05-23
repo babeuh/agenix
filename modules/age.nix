@@ -217,7 +217,6 @@ with lib; let
       symlink = mkEnableOption "symlinking secrets to their destination" // {default = true;};
     };
   });
-
 in {
   imports = [
     (mkRenamedOptionModule ["age" "sshKeyPaths"] ["age" "identityPaths"])
