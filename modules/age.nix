@@ -252,14 +252,14 @@ in {
         type = types.attrsOf (types.submodule ({identity, ...}: {
           freeformType = (pkgs.formats.json {}).type;
           options = {
-            identity = {
+            identity = mkOption {
               type = types.str;
               default = identity;
               description = ''
                 Identity of the ssh key on your Yubikey. Starts with AGE-PLUGIN-YUBIKEY-
               '';
             };
-            slot = {
+            slot = mkOption {
               type = types.int;
               default = 1;
               description = ''
