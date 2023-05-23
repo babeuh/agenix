@@ -218,12 +218,12 @@ with lib; let
     };
   });
 
-  yubikeyKeyType = types.submodule ({identity, ...}: {
+  yubikeyKeyType = types.attrsOf (types.submodule ({name, ...}: {
     freeformType = (pkgs.formats.json {}).type;
     options = {
       identity = mkOption {
         type = types.str;
-        default = identity;
+        default = name;
         description = ''
           Identity of the ssh key on your Yubikey. Starts with AGE-PLUGIN-YUBIKEY-
         '';
@@ -236,7 +236,7 @@ with lib; let
         '';
       };
     };
-  });
+  }));
 in {
   imports = [
     (mkRenamedOptionModule ["age" "sshKeyPaths"] ["age" "identityPaths"])
