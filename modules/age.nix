@@ -123,9 +123,7 @@ with lib; let
     (path: ''
       test -f ${path} || echo '[agenix] WARNING: config.age.identityPaths entry ${path} not present!'
     '')
-    (
-      cfg.identityPaths
-    );
+    cfg.identityPaths;
 
   cleanupAndLink = ''
     ${
