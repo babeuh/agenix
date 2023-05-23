@@ -250,7 +250,7 @@ in {
           };
         };
         type = types.attrsOf (types.submodule ({identity, ...}: {
-          freeformType = (pkgs.formats.json {}).type;
+          #freeformType = (pkgs.formats.json {}).type;
           options = {
             identity = mkOption {
               type = types.str;
