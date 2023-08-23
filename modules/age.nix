@@ -64,7 +64,7 @@ with lib; let
   yubikeyPinPrompt =
     if pkgs.stdenv.isLinux
     then ''AGE_YUBIKEY_PIN=$(${pkgs.systemd}/bin/systemd-ask-password --echo=masked "Enter your Yubikey PIN for $(${cfg.yubikey.plugin}/bin/age-plugin-yubikey -V):")''
-    else "";
+    else ""; # TODO: Do something for Darwin
 
   installSecret = secretType: ''
     ${setTruePath secretType}
@@ -76,7 +76,7 @@ with lib; let
       if cfg.yubikey.enable
       then ''
         mkdir -p /tmp/agenix
-        for identity in ${toString (cfg.yubikey.keys)}; do
+        for identity in ${toString (cfg.yubikey.identities)}; do
           (${cfg.yubikey.plugin}/bin/age-plugin-yubikey -i | ${pkgs.gnugrep}/bin/grep "$identity") || continue
           echo "$identity" > /tmp/agenix/$identity
           IDENTITIES+=(-i)
@@ -100,6 +100,11 @@ with lib; let
       umask u=r,g=,o=
       test -f "${secretType.file}" || echo '[agenix] WARNING: encrypted file ${secretType.file} does not exist!'
       test -d "$(dirname "$TMP_FILE")" || echo "[agenix] WARNING: $(dirname "$TMP_FILE") does not exist!"
+      ${
+      if cfg.yubikey.enable
+      then yubikeyPinPrompt
+      else ""
+    }
       LANG=${config.i18n.defaultLocale or "C"} ${
       if cfg.yubikey.enable
       then "PATH=$PATH:${lib.makeBinPath [cfg.yubikey.plugin]}"
@@ -149,13 +154,6 @@ with lib; let
       then []
       else testIdentities
     )
-    ++ [
-      (
-        if cfg.yubikey.enable
-        then yubikeyPinPrompt
-        else ""
-      )
-    ]
     ++ (map installSecret (builtins.attrValues cfg.secrets))
     ++ [cleanupAndLink]
   );
@@ -249,16 +247,14 @@ in {
           The age-plugin-yubikey package to use.
         '';
       };
-      keys = mkOption {
+      identities = mkOption {
         default = [];
         description = ''
           List of Yubikey identities to be used in age decryption. These start with AGE-PLUGIN-YUBIKEY-
         '';
-        example = {
-          AGE-PLUGIN-YUBIKEY-XYZ = {
-            slot = 1;
-          };
-        };
+        example = [
+          "AGE-PLUGIN-YUBIKEY-XYZ"
+        ];
         type = types.listOf types.str;
       };
     };
@@ -322,9 +318,13 @@ in {
         {
           assertion =
             if cfg.yubikey.enable
-            then cfg.yubikey.keys != []
+            then cfg.yubikey.identites != []
             else cfg.identityPaths != [];
-          message = "age.identityPaths (or age.yubikey.keys if age.yubikey.enable is set) must be set.";
+          message = "${
+            if cfg.yubikey.enable
+            then "age.yubikey.identities"
+            else "age.identityPaths"
+          }  must be set.";
         }
       ];
     }
