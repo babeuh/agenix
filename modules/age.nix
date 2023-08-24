@@ -318,7 +318,7 @@ in {
         {
           assertion =
             if cfg.yubikey.enable
-            then cfg.yubikey.identites != []
+            then cfg.yubikey.identities != []
             else cfg.identityPaths != [];
           message = "${
             if cfg.yubikey.enable
