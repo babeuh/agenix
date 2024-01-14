@@ -230,9 +230,9 @@ in {
   options.age = {
     ageBin = mkOption {
       type = types.str;
-      default = "${pkgs.rage}/bin/rage";
+      default = "${pkgs.age}/bin/age";
       defaultText = literalExpression ''
-        "''${pkgs.rage}/bin/rage"
+        "''${pkgs.age}/bin/age"
       '';
       description = ''
         The age executable to use.
